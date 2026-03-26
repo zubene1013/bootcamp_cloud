@@ -136,9 +136,12 @@ req = request.Request(
 )
 
 try:
+    print("Claude API 호출 시작...", file=sys.stderr)
+    print("payload 크기: " + str(len(body)) + " bytes", file=sys.stderr)
     with request.urlopen(req) as res:
         result = json.loads(res.read())
 except error.HTTPError as e:
+    print("에러 상세: " + e.read().decode(), file=sys.stderr)
     print("Claude API 오류: " + str(e), file=sys.stderr)
     print(e.read().decode(), file=sys.stderr)
     sys.exit(1)
