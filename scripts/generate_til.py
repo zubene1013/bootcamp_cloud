@@ -109,16 +109,22 @@ body = json.dumps({
 req = request.Request(
     "https://api.anthropic.com/v1/messages",
     data=body,
+    method="POST",
     headers={
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
+        "content-type": "application/json",
+        "content-length": str(len(body))
     }
 )
 
-with request.urlopen(req) as res:
-    data = json.loads(res.read())
-
+try:
+    with request.urlopen(req) as res:
+        data = json.loads(res.read())
+except Exception as e:
+    print(f"Claude API 오류: {e}", file=sys.stderr)
+    raise
+    
 til_content = data['content'][0]['text']
 
 year = datetime.now(KST).strftime('%Y')
