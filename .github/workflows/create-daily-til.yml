@@ -21,18 +21,19 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Seoul' date '+%Y-%m-%d')
           YEAR=$(TZ='Asia/Seoul' date '+%Y')
-          TODAY=$(TZ='Asia/Seoul' date '+%Y-%m-%dT00:00:00+09:00')
 
           # 오늘 수정된 노션 하위 페이지 목록 가져오기
           CHILDREN=$(curl -s "https://api.notion.com/v1/blocks/${NOTION_ROOT_PAGE_ID}/children?page_size=100" \
             -H "Authorization: Bearer $NOTION_API_KEY" \
             -H "Notion-Version: 2022-06-28")
 
+          echo "=== Notion API Response ==="
+          echo "$CHILDREN" | python3 -c "import json,sys; d=json.load(sys.stdin); print('pages found:', len(d.get('results', [])))"
+
           # 오늘 수정된 페이지 ID 추출
           PAGE_IDS=$(echo "$CHILDREN" | python3 -c "
           import json, sys
           from datetime import datetime, timezone, timedelta
-
           data = json.load(sys.stdin)
           KST = timezone(timedelta(hours=9))
           today = datetime.now(KST).date()
@@ -42,14 +43,20 @@ jobs:
                   last_edited = block.get('last_edited_time', '')
                   if last_edited:
                       dt = datetime.fromisoformat(last_edited.replace('Z', '+00:00')).astimezone(KST)
+                      print(f'page: {block[\"child_page\"][\"title\"]} | edited: {dt.date()} | today: {today}', file=sys.stderr)
                       if dt.date() == today:
                           ids.append(block['id'])
           print('\n'.join(ids))
           ")
 
           if [ -z "$PAGE_IDS" ]; then
-            echo "오늘 수정된 노션 페이지가 없습니다."
-            exit 0
+            echo "오늘 수정된 노션 페이지가 없습니다. 모든 페이지를 사용합니다."
+            PAGE_IDS=$(echo "$CHILDREN" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          ids = [b['id'] for b in data.get('results', []) if b.get('type') == 'child_page']
+          print('\n'.join(ids))
+          ")
           fi
 
           # 각 페이지 내용 수집
@@ -57,7 +64,6 @@ jobs:
           while IFS= read -r PAGE_ID; do
             [ -z "$PAGE_ID" ] && continue
 
-            # 페이지 제목
             PAGE_META=$(curl -s "https://api.notion.com/v1/pages/${PAGE_ID}" \
               -H "Authorization: Bearer $NOTION_API_KEY" \
               -H "Notion-Version: 2022-06-28")
@@ -73,7 +79,6 @@ jobs:
                   break
           ")
 
-            # 페이지 블록 내용
             BLOCKS=$(curl -s "https://api.notion.com/v1/blocks/${PAGE_ID}/children?page_size=100" \
               -H "Authorization: Bearer $NOTION_API_KEY" \
               -H "Notion-Version: 2022-06-28")
@@ -93,7 +98,7 @@ jobs:
               elif btype in ('bulleted_list_item', 'numbered_list_item'): lines.append(f'- {text}')
               elif btype == 'code':
                   lang = obj.get('language','')
-                  lines.append(f'\`\`\`{lang}\n{text}\n\`\`\`')
+                  lines.append(f'```{lang}\n{text}\n```')
               elif btype == 'paragraph' and text: lines.append(text)
           print('\n'.join(lines))
           ")
@@ -103,6 +108,9 @@ jobs:
           ### 페이지: ${TITLE}
           ${CONTENT}"
           done <<< "$PAGE_IDS"
+
+          echo "=== Collected Content ==="
+          echo "$ALL_CONTENT"
 
           # Claude로 TIL 생성
           PROMPT="You are a TIL (Today I Learned) writer. Based on the Notion notes below, generate a TIL markdown file in EXACTLY this format. Output ONLY the markdown, nothing else.
@@ -144,7 +152,7 @@ jobs:
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
             -d "{
-              \"model\": \"claude-opus-4-6\",
+              \"model\": \"claude-sonnet-4-5\",
               \"max_tokens\": 1500,
               \"messages\": [{
                 \"role\": \"user\",
@@ -152,9 +160,15 @@ jobs:
               }]
             }")
 
+          echo "=== Claude API Response ==="
+          echo "$RESPONSE"
+
           TIL_CONTENT=$(echo "$RESPONSE" | python3 -c "
           import json, sys
           data = json.load(sys.stdin)
+          if 'error' in data:
+              print('API Error:', data['error'], file=sys.stderr)
+              sys.exit(1)
           print(data['content'][0]['text'])
           ")
 
