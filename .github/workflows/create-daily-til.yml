@@ -13,13 +13,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch today's Notion pages and generate TIL
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_ROOT_PAGE_ID: ${{ secrets.NOTION_ROOT_PAGE_ID }}
+      - name: Generate TIL script
         run: |
-          python3 << 'EOF'
+          cat > /tmp/generate_til.py << 'PYEOF'
 import os, json, sys
 from urllib import request
 from datetime import datetime, timezone, timedelta
@@ -42,7 +38,6 @@ def notion_get(path):
         return json.loads(res.read())
 
 def get_blocks_recursive(block_id):
-    """토글 포함 모든 블록을 재귀적으로 가져오기"""
     data = notion_get(f"blocks/{block_id}/children?page_size=100")
     lines = []
     for block in data.get('results', []):
@@ -60,22 +55,20 @@ def get_blocks_recursive(block_id):
         elif btype in ('bulleted_list_item', 'numbered_list_item'):
             lines.append(f"- {text}")
         elif btype == 'toggle':
-            lines.append(f"### {text}")  # 토글 제목도 포함
+            lines.append(f"### {text}")
         elif btype == 'code':
             lang = obj.get('language', '')
-            lines.append(f"```{lang}\n{text}\n```")
+            lines.append(f"CODEBLOCK_START_{lang}\n{text}\nCODEBLOCK_END")
         elif btype == 'paragraph' and text:
             lines.append(text)
         elif btype == 'callout' and text:
             lines.append(f"> {text}")
 
-        # 토글이나 하위 블록 있으면 재귀 탐색
         if block.get('has_children'):
             lines.extend(get_blocks_recursive(block['id']))
 
     return lines
 
-# 루트 페이지 하위 페이지 중 오늘 수정된 것만 수집
 children = notion_get(f"blocks/{ROOT_PAGE_ID}/children?page_size=100")
 all_content = []
 
@@ -102,41 +95,28 @@ notion_text = '\n\n'.join(all_content)
 print("=== 수집된 노션 내용 ===", file=sys.stderr)
 print(notion_text, file=sys.stderr)
 
-# Claude API 호출
 date_str = datetime.now(KST).strftime('%Y-%m-%d')
-prompt = f"""You are a TIL (Today I Learned) writer. Based on the Notion notes below, generate a TIL markdown file in EXACTLY this format. Output ONLY the markdown, nothing else.
-
-# {date_str}
-
-## What I did
-
-- (오늘 한 일을 bullet point로 요약)
-
-## Key concepts learned
-
-- (배운 핵심 개념들을 bullet point로, 각 개념에 한 줄 설명 추가)
-
-## Commands / Configuration
-
-### (주제명)
-
-```
-(코드나 설정이 있으면 여기, 없으면 이 섹션 전체 생략)
-```
-
-## References
-
-- (관련 공식 문서나 링크)
-
----
-
-Notion notes:
-{notion_text}
-
-Rules:
-- Commands / Configuration 섹션은 코드나 설정이 있을 때만 포함
-- References는 실제 존재하는 공식 문서 링크만
-- 노션에 작성된 언어(한국어/영어)를 그대로 따를 것"""
+prompt = (
+    "You are a TIL (Today I Learned) writer. "
+    "Based on the Notion notes below, generate a TIL markdown file in EXACTLY this format. "
+    "Output ONLY the markdown, nothing else.\n\n"
+    f"# {date_str}\n\n"
+    "## What I did\n\n"
+    "- (오늘 한 일을 bullet point로 요약)\n\n"
+    "## Key concepts learned\n\n"
+    "- (배운 핵심 개념들을 bullet point로, 각 개념에 한 줄 설명 추가)\n\n"
+    "## Commands / Configuration\n\n"
+    "### (주제명)\n\n"
+    "```\n(코드나 설정이 있으면 여기)\n```\n\n"
+    "## References\n\n"
+    "- (관련 공식 문서나 링크)\n\n"
+    "---\n\n"
+    f"Notion notes:\n{notion_text}\n\n"
+    "Rules:\n"
+    "- Commands / Configuration 섹션은 코드나 설정이 있을 때만 포함\n"
+    "- References는 실제 존재하는 공식 문서 링크만\n"
+    "- 노션에 작성된 언어(한국어/영어)를 그대로 따를 것"
+)
 
 body = json.dumps({
     "model": "claude-sonnet-4-5",
@@ -167,7 +147,14 @@ filepath = f"TIL/{year}/{date_str}.md"
 with open(filepath, 'w') as f:
     f.write(til_content)
 print(f"파일 생성 완료: {filepath}")
-EOF
+PYEOF
+
+      - name: Fetch today's Notion pages and generate TIL
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_ROOT_PAGE_ID: ${{ secrets.NOTION_ROOT_PAGE_ID }}
+        run: python3 /tmp/generate_til.py
 
       - name: Commit and push
         run: |
