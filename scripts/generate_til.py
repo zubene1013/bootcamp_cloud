@@ -7,6 +7,7 @@ ANTHROPIC_API_KEY = os.environ['ANTHROPIC_API_KEY']
 ROOT_PAGE_ID = os.environ['NOTION_ROOT_PAGE_ID']
 KST = timezone(timedelta(hours=9))
 today = datetime.now(KST).date()
+SNAPSHOT_FILE = "scripts/.notion_snapshot.json"
 
 def notion_get(path):
     req = request.Request(
@@ -51,38 +52,55 @@ def get_blocks_recursive(block_id):
 
     return lines
 
-# 루트 페이지 하위 페이지 수집
+# 현재 노션 전체 내용 가져오기
 children = notion_get("blocks/" + ROOT_PAGE_ID + "/children?page_size=100")
-all_content = []
+current_snapshot = {}
 
 for block in children.get('results', []):
     if block.get('type') != 'child_page':
         continue
-    last_edited = block.get('last_edited_time', '')
-    dt = datetime.fromisoformat(last_edited.replace('Z', '+00:00')).astimezone(KST)
     title = block['child_page']['title']
-    print("페이지: " + title + " | 수정일: " + str(dt.date()), file=sys.stderr)
-
-    if dt.date() != today:
-        continue
-
     lines = get_blocks_recursive(block['id'])
-    if lines:
-        all_content.append("### 페이지: " + title + "\n" + '\n'.join(lines))
+    current_snapshot[title] = lines
+    print("페이지 읽음: " + title, file=sys.stderr)
 
-if not all_content:
-    print("오늘 수정된 노션 페이지 내용이 없습니다.", file=sys.stderr)
+# 이전 snapshot 불러오기
+previous_snapshot = {}
+if os.path.exists(SNAPSHOT_FILE):
+    with open(SNAPSHOT_FILE, 'r') as f:
+        previous_snapshot = json.load(f)
+    print("이전 snapshot 불러옴", file=sys.stderr)
+else:
+    print("이전 snapshot 없음 - 첫 실행", file=sys.stderr)
+
+# 변경된 내용 추출
+diff_content = []
+for title, current_lines in current_snapshot.items():
+    previous_lines = previous_snapshot.get(title, [])
+    current_set = set(current_lines)
+    previous_set = set(previous_lines)
+    new_lines = [line for line in current_lines if line not in previous_set]
+
+    if new_lines:
+        print("변경 감지: " + title + " (" + str(len(new_lines)) + "줄 추가)", file=sys.stderr)
+        diff_content.append("### 페이지: " + title + "\n" + '\n'.join(new_lines))
+
+if not diff_content:
+    print("새로 추가된 내용이 없습니다.", file=sys.stderr)
+    # snapshot은 업데이트
+    with open(SNAPSHOT_FILE, 'w') as f:
+        json.dump(current_snapshot, f, ensure_ascii=False, indent=2)
     sys.exit(0)
 
-notion_text = '\n\n'.join(all_content)
-print("=== 수집된 노션 내용 ===", file=sys.stderr)
+notion_text = '\n\n'.join(diff_content)
+print("=== 새로 추가된 내용 ===", file=sys.stderr)
 print(notion_text, file=sys.stderr)
 
 date_str = datetime.now(KST).strftime('%Y-%m-%d')
 
 prompt_lines = [
     "You are a TIL (Today I Learned) writer.",
-    "Based on the Notion notes below, generate a TIL markdown in EXACTLY this format.",
+    "Based on the NEW content added to Notion today, generate a TIL markdown in EXACTLY this format.",
     "Output ONLY the markdown, nothing else.",
     "",
     "# " + date_str,
@@ -107,13 +125,14 @@ prompt_lines = [
     "",
     "---",
     "",
-    "Notion notes:",
+    "New content added today:",
     notion_text,
     "",
     "Rules:",
     "- Commands / Configuration 섹션은 코드나 설정이 있을 때만 포함",
     "- References는 실제 존재하는 공식 문서 링크만",
-    "- 노션에 작성된 언어를 그대로 따를 것"
+    "- 노션에 작성된 언어를 그대로 따를 것",
+    "- 오늘 새로 추가된 내용만 기반으로 작성할 것"
 ]
 prompt = '\n'.join(prompt_lines)
 
@@ -136,12 +155,9 @@ req = request.Request(
 )
 
 try:
-    print("Claude API 호출 시작...", file=sys.stderr)
-    print("payload 크기: " + str(len(body)) + " bytes", file=sys.stderr)
     with request.urlopen(req) as res:
         result = json.loads(res.read())
 except error.HTTPError as e:
-    print("에러 상세: " + e.read().decode(), file=sys.stderr)
     print("Claude API 오류: " + str(e), file=sys.stderr)
     print(e.read().decode(), file=sys.stderr)
     sys.exit(1)
@@ -150,9 +166,15 @@ til_content = result['content'][0]['text']
 print("=== 생성된 TIL ===", file=sys.stderr)
 print(til_content, file=sys.stderr)
 
+# TIL 파일 저장
 year = datetime.now(KST).strftime('%Y')
 os.makedirs("TIL/" + year, exist_ok=True)
 filepath = "TIL/" + year + "/" + date_str + ".md"
 with open(filepath, 'w') as f:
     f.write(til_content)
-print("파일 생성 완료: " + filepath)
+print("TIL 생성 완료: " + filepath)
+
+# snapshot 업데이트
+with open(SNAPSHOT_FILE, 'w') as f:
+    json.dump(current_snapshot, f, ensure_ascii=False, indent=2)
+print("snapshot 업데이트 완료")
