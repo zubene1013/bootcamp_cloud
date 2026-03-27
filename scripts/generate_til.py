@@ -132,6 +132,7 @@ prompt_lines = [
     "- Commands / Configuration 섹션은 코드나 설정이 있을 때만 포함",
     "- References는 실제 존재하는 공식 문서 링크만",
     "- 노션에 작성된 언어를 그대로 따를 것",
+    "- snapshot에 이미 있던 내용은 제외할 것",
     "- 오늘 새로 추가된 내용만 기반으로 작성할 것"
 ]
 prompt = '\n'.join(prompt_lines)
