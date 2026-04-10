@@ -132,7 +132,22 @@
     "### 다중 catch",
     "```javascript\ntry {\n    int[] arr = new int[3];\n    arr[5] = Integer.parseInt(\"abc\");  // 여러 예외 가능!\n} catch(ArrayIndexOutOfBoundsException e) {\n    System.out.println(\"배열 범위 초과!\");\n} catch(NumberFormatException e) {\n    System.out.println(\"숫자 변환 실패!\");\n} catch(Exception e) {\n    System.out.println(\"기타 예외!\");  // 최하단에! 모든 예외 처리\n}\n```",
     "### 예외 정보 출력",
-    "```javascript\ntry {\n    int n = 10 / 0;\n} catch(ArithmeticException e) {\n    System.out.println(e.getMessage());   // → / by zero\n    e.printStackTrace();                  // → 예외 발생 위치 상세 출력\n}\n```"
+    "```javascript\ntry {\n    int n = 10 / 0;\n} catch(ArithmeticException e) {\n    System.out.println(e.getMessage());   // → / by zero\n    e.printStackTrace();                  // → 예외 발생 위치 상세 출력\n}\n```",
+    "### 2026-04-10",
+    "```javascript\n## 2026-04-10\n\n# Generics\n - Advantages\n  > Type safety for stored data\n  > No type casting required\n - Features\n  > Replaced with actual type at compile time\n  > Can be used in classes, interfaces, method parameters\n  > static not allowed, object creation not allowed\n  \n# Collection API\n - Array\n  > Size : Fixed \n  > Data : Same type only\n  > Methods : Minimal\n \n - Collection\n  > Dynamic\n  > All types possible\n  > Many built-in\n  \n# Standard API Functional Interface\n - @FunctionalInterface -> Must have exactly one abstract method Must be expressed as a lambda expression\n \n# Stream API\n - Provides statistics, filtering, sorting, and deduplication for Collections\n```",
+    "### Table",
+    "## 제네릭스 (Generics)",
+    "### 타입 파라미터",
+    "### 계층구조",
+    "## 컬렉션 API (Collection API)",
+    "```javascript\nCollection<E>                    Map<K,V>\n    |                                |\n    |                            HashMap<K,V>\nSet<E>      List<E>\n    |           |\nHashSet<E>  ArrayList<E>\n```",
+    "### 종류",
+    "## 가변인자 (Variable Arguments)",
+    "```javascript\n// 일반 메서드\npublic void a(int a) { }\na(10);\n\n// 가변인자 메서드 → 배열로 관리\npublic void a2(int ... a) { }\na2(1);\na2(1, 2, 3);\n```",
+    "## 표준 API 함수적 인터페이스",
+    "@FunctionalInterface → 추상메서드 반드시 1개",
+    "## Stream API",
+    "\"컬렉션에서 통계, 필터링, 정렬, 중복제거 등 처리\""
   ],
   "Git": [
     "### Process",
