@@ -143,7 +143,7 @@ prompt = '\n'.join(prompt_lines)
 
 payload = {
     "model": "claude-haiku-4-5",
-    "max_tokens": 1500,
+    "max_tokens": 3000,
     "messages": [{"role": "user", "content": prompt}]
 }
 body = json.dumps(payload).encode('utf-8')
