@@ -1,0 +1,130 @@
+# 2026-05-01
+
+## What I did
+
+- 자바 개발 플랫폼 3가지 (Java SE / EE / ME) 개념 학습
+- Tomcat 10 설치 및 Eclipse 연동 실습
+- Dynamic Web Project 생성 및 폴더 구조 학습
+- 서블릿(Servlet) 개념 및 계층구조 학습
+- 서블릿 매핑(Servlet Mapping) 2가지 방법 학습
+- 서블릿 라이프사이클(LifeCycle) 학습
+
+---
+
+## Key concepts learned
+
+- **Java EE** = 웹 애플리케이션 개발 플랫폼, Servlet/JSP 명세 포함
+- **Tomcat** = Java EE 명세를 구현한 WAS(Web Application Server), Servlet/JSP 컨테이너
+- **Context root** = 웹 애플리케이션의 논리적 이름, `http://localhost:8080/컨텍스트명` 으로 접근
+- **WEB-INF** = 외부에서 직접 접근 불가한 보안 폴더 (반드시 대문자)
+- **Servlet** = Java 코드로 작성하는 웹 컴포넌트, Tomcat이 생성~소멸 관리
+- **서블릿 매핑** = 긴 URL을 짧게 줄이고 보안 강화하는 방법
+- **서블릿 라이프사이클** = init(1회) → doGet/doPost(매번) → destroy(1회)
+
+---
+
+## Commands / Configuration
+
+### Tomcat 9 vs Tomcat 10 차이점
+
+| 구분 | Tomcat 9 | Tomcat 10 |
+|---|---|---|
+| JDK 지원 | JDK 11까지 | JDK 17 이상 |
+| 관리 벤더 | Oracle | Apache |
+| 패키지명 | `javax.servlet` | `jakarta.servlet` |
+
+### 환경변수 설정
+JAVA_HOME=C:\Program Files\Java\jdk-21.0.10
+PATH=%JAVA_HOME%\bin;%PATH%
+CATALINA_HOME=C:\cloud_engineering\servlet_jsp\apache-tomcat-10.1.54
+
+### 웹 애플리케이션 배포 구조
+tomcat
+└── webapps
+└── test
+├── WEB-INF        ← 반드시 대문자! 외부 접근 불가
+│     ├── lib      ← .jar 파일
+│     ├── classes  ← .class 파일
+│     └── web.xml  ← 설정파일
+├── *.html
+├── *.jsp
+├── *.css
+└── *.js
+
+### 서블릿 계층구조 (외우기!)
+Servlet (인터페이스)
+└── GenericServlet (추상클래스)
+└── HttpServlet (추상클래스)
+└── 내가 만드는 서블릿
+
+### 서블릿 기본 구현
+
+```java
+package com.servlet;  // 패키지 필수!
+
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+public class HelloServlet extends HttpServlet {
+
+    // 서블릿 생성 시 1회 호출
+    @Override
+    public void init() {
+        System.out.println("init 호출");
+    }
+
+    // GET 요청마다 호출
+    @Override
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response) {
+        // request, response는 로컬변수 → 요청마다 새로 생성 → 안전!
+    }
+
+    // POST 요청마다 호출
+    @Override
+    protected void doPost(HttpServletRequest request,
+                          HttpServletResponse response) {
+    }
+
+    // 서블릿 소멸 시 1회 호출
+    @Override
+    public void destroy() {
+        System.out.println("destroy 호출");
+    }
+}
+```
+
+### 서블릿 매핑 방법 1 — 어노테이션 (권장)
+
+```java
+@WebServlet("/hello")  // / 필수!
+public class HelloServlet extends HttpServlet { ... }
+```
+
+### 서블릿 매핑 방법 2 — web.xml
+
+```xml
+<servlet>
+    <servlet-name>HelloServlet</servlet-name>
+    <servlet-class>com.servlet.HelloServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+    <servlet-name>HelloServlet</servlet-name>
+    <url-pattern>/hello</url-pattern>
+</servlet-mapping>
+```
+
+### 서블릿 라이프사이클
+
+| 메서드 | 호출 시점 | 호출 횟수 |
+|---|---|---|
+| `init()` | 서블릿 최초 생성 시 | 단 1회 |
+| `doGet()` / `doPost()` | 사용자 요청마다 | 매번 실행 |
+| `destroy()` | 서블릿 삭제 시 | 단 1회 |
+
+> ⚠️ 서블릿은 단 1번만 생성되고 여러 사용자 요청을 처리함
+> → 인스턴스 변수 사용 시 보안 이슈 발생!
+> → 반드시 로컬 변수 사용!
+
+---
