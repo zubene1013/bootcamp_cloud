@@ -1,4 +1,4 @@
-name: Create Daily TIL with AI
+name: Create Daily TIL
 
 on:
   workflow_dispatch:
