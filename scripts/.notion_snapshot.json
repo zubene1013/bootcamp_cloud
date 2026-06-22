@@ -2504,6 +2504,8 @@
     "- Ingress",
     "- env 환경변수",
     "- ConfigMap",
+    "- Secret",
+    "- Volume (emptyDir / hostPath / ConfigMap·Secret / PV·PVC)",
     "## 1. Service",
     "### 왜 Service가 필요한가?",
     "Pod는 재시작할 때마다 IP가 바뀜 → 직접 접근 불가",
@@ -2575,6 +2577,14 @@
     "### ConfigMap 참조 방법 2 — 한꺼번에 참조 (envFrom)",
     "```yaml\nenvFrom:\n- configMapRef:\n    name: game-configmap   # ConfigMap의 모든 key-value를 한번에 주입\n```",
     "### 확인",
-    "```bash\nkubectl exec game-single-pod -- printenv\nkubectl exec game-envfrom-pod -- env\n```"
+    "```bash\nkubectl exec game-single-pod -- printenv\nkubectl exec game-envfrom-pod -- env\n```",
+    "## 5. Secret",
+    "### 개념",
+    "- ConfigMap과 동일한 구조지만 민감한 정보(비밀번호, 토큰, 인증서 등) 저장용",
+    "- base64 인코딩 저장 → 암호화가 아님 (누구나 디코딩 가능)",
+    "- 실제 암호화는 etcd 수준에서 별도 설정 필요",
+    "- namespace 단위 적용",
+    "### data vs stringData",
+    "```yaml\n# secret.yaml\napiVersion: v1\nkind: Secret\nmetadata:\n  name: secret-test\ndata:\n  email: aW5reTQ4MzJAZGF1bS5uZXQ=    # base64 인코딩값\nstringData:\n  username: root      # 평문 → K8s가 자동 인코딩\n  password: \"1234\"\n  database: testdb\n```"
   ]
 }
